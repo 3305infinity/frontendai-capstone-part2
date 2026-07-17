@@ -3,7 +3,6 @@
 An AI-powered developer productivity tool that understands your software repository and answers repository-specific questions. Built with Next.js 16, React 19, TypeScript, and Tailwind CSS v4.
 
 ## Project Overview
-
 Berozgar transforms a generic AI chat interface into an **Engineering Project Copilot**. Instead of acting as a general-purpose chatbot, it reads actual project files — `README.md`, `package.json`, `workflow.md`, and others — to ground its responses in real repository data.
 
 The copilot can explain the repository's architecture, summarize its folder structure, generate professional documentation, and prepare engineers for project interviews — all without hallucinating details.
