@@ -179,7 +179,3 @@ Fonts: **Space Grotesk** (headings), **Inter** (body), **Geist** (UI) via `next/
 - Inject git diff or recent file changes to answer "what changed recently" questions.
 - Track which files the user has asked about and surface related files proactively.
 - Add confidence scoring so the model indicates when it is answering from partial context.
-
-## License
-
-Built as part of the FlyRank Frontend AI Engineering internship program.
