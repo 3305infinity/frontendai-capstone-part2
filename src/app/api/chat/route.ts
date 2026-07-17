@@ -71,11 +71,26 @@ export async function POST(req: Request) {
     const lastMessage = messages[messages.length - 1];
     const lastContent = getUIMessageText(lastMessage);
 
-    const toolCallMatch = lastContent?.match(/analyze\s+repository/i) ||
-                         lastContent?.match(/repository\s+analyzer/i) ||
-                         lastContent?.match(/analyze\s+this\s+repo/i);
+    const repositoryAnalysisTriggers = [
+      /analyze\s+repository/i,
+      /repository\s+analyzer/i,
+      /analyze\s+this\s+repo/i,
+      /explain\s+this\s+repository/i,
+      /summarize\s+technologies/i,
+      /tech\s+stack/i,
+      /generate\s+a\s+professional\s+readme/i,
+      /readme\s+md/i,
+      /project\s+(overview|architecture|structure)/i,
+      /what\s+is\s+this\s+project/i,
+      /dependencies\s+list/i,
+      /package\.json/i,
+    ];
 
-    if (toolCallMatch) {
+    const shouldCallRepositoryAnalyzer = repositoryAnalysisTriggers.some(
+      (regex) => lastContent?.match(regex)
+    );
+
+    if (shouldCallRepositoryAnalyzer) {
       const input = { analysisType: "overview" } as const;
       const analysisResult = await analyzeRepository(input);
 

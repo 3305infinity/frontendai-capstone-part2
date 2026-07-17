@@ -12,7 +12,9 @@ Successfully implemented production-quality AI SDK Tool Calling for the `reposit
 User Query → LLM Decision → repositoryAnalyzer Tool → Server File Reading → RepositoryAnalysisResult → UI Component Rendering
 ```
 
-**Mock Mode**: Simulates LLM decision to call the tool, then executes the tool and returns proper AI SDK tool parts.
+**Mock Mode**: Simulates LLM decision to call the tool by detecting repository analysis prompts, then executes the tool and streams proper AI SDK tool parts
+
+**Fixed Issue**: Expanded tool call detection to include repository analysis prompts like "Generate a professional README", "Summarize technologies", "Explain this repository", etc. Previously only matched specific patterns like "analyze repository"..
 **Live Mode**: Real Gemini 1.5 Flash makes the tool call decision and executes the tool.
 
 ## Modified Files
