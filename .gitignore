@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.next
+out
+*.local
+.env
+.env.local
+.env*.local
+.DS_Store

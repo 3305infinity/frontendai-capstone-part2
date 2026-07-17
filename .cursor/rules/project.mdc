@@ -1,0 +1,111 @@
+# Frontend AI Capstone Rules
+
+## Tech Stack
+
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- Server Components by default
+- Client Components only when interactivity is required
+
+## UI Rules
+
+- Use Space Grotesk for headings.
+- Use Inter for body text.
+- Primary color: #2563EB
+- Background: #F9FAFB
+- Text: #111827
+- Accent: #14B8A6
+
+Keep the UI clean, minimal, modern and technical.
+
+Avoid unnecessary animations and visual clutter.
+
+## Components
+
+Always prefer reusable components.
+
+Create reusable:
+- Navbar
+- Footer
+- Button
+- Container
+- Section
+- PageHeader
+- ProjectCard
+
+## Forms
+
+Use React Hook Form.
+
+Use Zod for validation.
+
+Avoid uncontrolled inputs.
+
+## Routing
+
+Every page must have:
+
+- Title
+- Short description
+- Responsive layout
+
+## Code Quality
+
+Prefer TypeScript.
+
+Prefer Server Components.
+
+Avoid duplication.
+
+Keep components small.
+
+## AI Workflow
+
+Before generating code:
+
+- Understand the existing project.
+- Reuse existing components.
+- Never overwrite working code.
+- Make incremental changes.
+
+After generating code:
+
+- Check TypeScript errors.
+- Check ESLint errors.
+- Check responsiveness.
+- Verify accessibility.
+
+## Portfolio Style
+
+Tone:
+
+Direct
+
+Technical
+
+Honest
+
+No buzzwords
+
+Minimal
+
+Professional
+
+## Portfolio Goal
+
+The portfolio should convince recruiters to contact me for Software Engineering and AI Engineering internship opportunities.
+
+Always prioritize clarity over decoration.
+
+Use real project screenshots whenever available.
+
+Never replace real work with AI-generated visuals.
+
+## Deployment
+
+Keep the project Vercel-ready.
+
+Never commit secrets.
+
+Always update .env.example when environment variables change.
