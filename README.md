@@ -1,4 +1,4 @@
-# Berozgar — Engineering Project Copilot
+#  Engineering Project Copilot
 
 An AI-powered developer productivity tool that understands your software repository and answers repository-specific questions. Built with Next.js 16, React 19, TypeScript, and Tailwind CSS v4.
 
