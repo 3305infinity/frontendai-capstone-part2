@@ -8,6 +8,7 @@ import {
 } from "ai";
 import { getGoogleProvider, isApiKeyConfigured } from "@/lib/ai";
 import { SYSTEM_PROMPT } from "@/lib/prompts";
+import { buildRepoContext, formatRepoContextForPrompt } from "@/lib/repoContext";
 
 export const maxDuration = 30;
 
@@ -28,6 +29,11 @@ export async function POST(req: Request) {
       });
     }
 
+    const repoContext = await buildRepoContext();
+    const repoContextPrompt = formatRepoContextForPrompt(repoContext);
+
+    const enhancedSystemPrompt = `${SYSTEM_PROMPT}\n\n${repoContextPrompt}`;
+
     // 1. Real API mode if key is configured
     if (isApiKeyConfigured()) {
       const provider = getGoogleProvider();
@@ -35,7 +41,7 @@ export async function POST(req: Request) {
         const result = streamText({
           model: provider("gemini-1.5-flash"),
           messages: await convertToModelMessages(messages),
-          system: SYSTEM_PROMPT,
+          system: enhancedSystemPrompt,
         });
 
         return result.toUIMessageStreamResponse();
@@ -52,7 +58,6 @@ export async function POST(req: Request) {
         const messageId = generateId();
         writer.write({ type: "text-start", id: messageId });
 
-        // Tokenize the mock response and stream word-by-word with delays
         const tokens = tokenize(mockResponseText);
         for (const token of tokens) {
           writer.write({ type: "text-delta", id: messageId, delta: token });

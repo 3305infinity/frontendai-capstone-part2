@@ -55,28 +55,40 @@ function saveChatMessages(chatId: string, messages: Message[]) {
 
 const suggestedPrompts = [
   {
-    title: "Tailwind Dashboard Layout",
-    prompt: "Build a responsive modern dashboard layout using Tailwind Grid and Flexbox with a sidebar and statistics cards.",
-    icon: Palette,
-    color: "text-pink-500 bg-pink-500/10",
-  },
-  {
-    title: "TypeScript Debounce hook",
-    prompt: "Write a complete TypeScript function to debounce an input search query in React, with full type safety.",
-    icon: MessageSquareCode,
+    title: "Explain this repository",
+    prompt: "Explain this repository: what it does, its purpose, and its current state.",
+    icon: Terminal,
     color: "text-blue-500 bg-blue-500/10",
   },
   {
-    title: "RSC vs Client Components",
-    prompt: "Explain the key differences between React Server Components (RSC) and Client Components ('use client') in Next.js.",
+    title: "Explain project architecture",
+    prompt: "Explain the project architecture: how the codebase is organized, key layers, and data flow.",
     icon: Sparkles,
     color: "text-purple-500 bg-purple-500/10",
   },
   {
-    title: "Optimize API Routes",
-    prompt: "What are the best practices for structuring API route handlers in Next.js for high performance and clean validation?",
-    icon: Zap,
+    title: "Explain folder structure",
+    prompt: "Explain the folder structure of this project and what each major directory contains.",
+    icon: MessageSquareCode,
     color: "text-amber-500 bg-amber-500/10",
+  },
+  {
+    title: "Generate README",
+    prompt: "Generate a professional README for this repository based on its actual files and configuration.",
+    icon: Palette,
+    color: "text-pink-500 bg-pink-500/10",
+  },
+  {
+    title: "Prepare me for an interview",
+    prompt: "Prepare me for explaining this project in a software engineering interview: key talking points, architecture decisions, and tradeoffs.",
+    icon: Zap,
+    color: "text-emerald-500 bg-emerald-500/10",
+  },
+  {
+    title: "Summarize technologies used",
+    prompt: "Summarize all technologies, frameworks, and tools used in this project based on package.json and configuration files.",
+    icon: MessageSquareCode,
+    color: "text-cyan-500 bg-cyan-500/10",
   },
 ];
 
@@ -227,10 +239,10 @@ export function ChatWindow({
             </div>
 
             <h2 className="text-xl font-bold tracking-tight text-[var(--color-text)] sm:text-2xl">
-              Meet Berozgar Copilot
+              Engineering Project Copilot
             </h2>
             <p className="mt-2 max-w-md text-sm text-[var(--color-muted)] leading-relaxed">
-              Your senior engineering companion. Ask questions, build components, and debug your application with ease.
+              I understand this repository. Ask me about its architecture, structure, technologies, or generate project documentation.
             </p>
 
             {/* Suggested Prompts Grid */}
