@@ -16,6 +16,25 @@ import { z } from "zod";
 
 export const maxDuration = 30;
 
+interface SabotageOptions {
+  sabotageType: "network" | "429" | "500" | "mid-stream" | "repository-empty" | null;
+}
+
+function getSabotageOptions(req: Request): SabotageOptions {
+  const url = new URL(req.url);
+  const sabotageType = url.searchParams.get("sabotage_type");
+  const sabotageMode = url.searchParams.get("sabotage");
+  
+  const validTypes: SabotageOptions["sabotageType"][] = ["network", "429", "500", "mid-stream", "repository-empty"];
+  const type = validTypes.includes(sabotageType as SabotageOptions["sabotageType"])
+    ? sabotageType as SabotageOptions["sabotageType"]
+    : null;
+  
+  return {
+    sabotageType: sabotageMode === "true" ? type : null,
+  };
+}
+
 const repositoryAnalyzerTool = tool({
   description: "Analyze the current repository and return structured metadata about the project including project name, framework, language, dependencies, scripts, architecture summary, documentation status, and recommendations.",
   inputSchema: z.object({
@@ -36,6 +55,109 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const sabotageOptions = getSabotageOptions(req);
+
+  if (sabotageOptions.sabotageType === "network") {
+    return new Response(JSON.stringify({ error: "Network connection failed" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (sabotageOptions.sabotageType === "429") {
+    return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
+      status: 429,
+      headers: { 
+        "Content-Type": "application/json",
+        "Retry-After": "5",
+      },
+    });
+  }
+
+  if (sabotageOptions.sabotageType === "500") {
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (sabotageOptions.sabotageType === "repository-empty") {
+    const emptyResult = {
+      projectName: "Unknown Project",
+      framework: "Unknown",
+      language: "JavaScript",
+      dependencies: [],
+      scripts: {},
+      architectureSummary: "No repository files found to analyze.",
+      documentationStatus: "No README.md or package.json found",
+      recommendations: ["Add README.md to document the project", "Add package.json to define dependencies"],
+    };
+
+    const mockToolResult = {
+      id: generateId(),
+      role: "assistant" as const,
+      parts: [
+        {
+          type: "tool-repositoryAnalyzer" as const,
+          toolCallId: generateId(),
+          state: "output-available" as const,
+          input: { analysisType: "overview" } as const,
+          output: emptyResult,
+        },
+        {
+          type: "text" as const,
+          text: `## Repository Analysis Complete
+
+I've analyzed the repository and found the following:
+
+**Project Overview**
+- **Project Name:** ${emptyResult.projectName}
+- **Framework:** ${emptyResult.framework}
+- **Language:** ${emptyResult.language}
+
+**Dependencies**
+- No dependencies found
+
+**Scripts**
+- No scripts defined
+
+**Architecture Summary**
+${emptyResult.architectureSummary}
+
+**Documentation Status**
+${emptyResult.documentationStatus}
+
+**Recommendations**
+${emptyResult.recommendations.map((r) => `- ${r}`).join("\n")}`
+        }
+      ] as const,
+    } as UIMessage;
+
+    const stream = createUIMessageStream({
+      async execute({ writer }) {
+        const parts = mockToolResult.parts;
+        for (const part of parts) {
+          if (part.type === "text") {
+            const messageId = generateId();
+            writer.write({ type: "text-start", id: messageId });
+            
+            const tokens = tokenize(part.text);
+            for (const token of tokens) {
+              writer.write({ type: "text-delta", id: messageId, delta: token });
+              await delay(15);
+            }
+            
+            writer.write({ type: "text-end", id: messageId });
+          } else {
+            writer.write(part as unknown as UIMessageChunk);
+          }
+        }
+      },
+    });
+
+    return createUIMessageStreamResponse({ stream });
+  }
+
   try {
     const { messages } = (await req.json()) as { messages: UIMessage[] };
 
@@ -148,6 +270,9 @@ ${analysisResult.recommendations.map((r) => `- ${r}`).join("\n")}`
               
               const tokens = tokenize(part.text);
               for (const token of tokens) {
+                if (sabotageOptions.sabotageType === "mid-stream") {
+                  throw new Error("Stream interrupted");
+                }
                 writer.write({ type: "text-delta", id: messageId, delta: token });
                 await delay(15);
               }
@@ -174,6 +299,9 @@ ${analysisResult.recommendations.map((r) => `- ${r}`).join("\n")}`
 
         const tokens = tokenize(mockResponseText);
         for (const token of tokens) {
+          if (sabotageOptions.sabotageType === "mid-stream") {
+            throw new Error("Stream interrupted");
+          }
           writer.write({ type: "text-delta", id: messageId, delta: token });
           await delay(35);
         }

@@ -50,6 +50,8 @@ The copilot can explain the repository's architecture, summarize its folder stru
 - **Export conversations**: Download chat history as Markdown.
 - **Mock mode**: Works offline without an API key using simulated streaming.
 - **AI SDK Tool Calling**: `repositoryAnalyzer` tool inspects repository files and returns structured metadata rendered as professional UI components.
+- **Production error handling**: Comprehensive error states with retry functionality for network failures, API errors, rate limits, and mid-stream interruptions.
+- **Sabotage mode**: Simulate network errors, 429 rate limits, 500 server errors, mid-stream interruptions, and empty repository for testing.
 
 ## Tech Stack
 
@@ -181,6 +183,53 @@ The LLM can decide to call the tool based on the user's query, and the result is
 - "Prepare me for explaining this project in an interview"
 - "Summarize technologies used"
 
+## Error Handling
+
+The AI Copilot includes production-quality error handling for various failure scenarios:
+
+### Error States Handled
+
+| Error Type | Description | User Action |
+|------------|-------------|-------------|
+| Empty chat | Welcome screen with suggested prompts | Click a prompt or type a message |
+| Empty input | Input ignored when blank | Type a message |
+| Loading/Slow response | 5-second warning shown | Wait or retry |
+| Network failure | Connection lost to API | Click "Retry" in NetworkErrorCard |
+| API failure | Server returned error | Click "Retry Last Message" |
+| Rate limit (429) | Too many requests | Click "Retry" after waiting |
+| Repository not found | No README/package.json | Add files or proceed with empty analysis |
+| Mid-stream interruption | Stream cut off | Click "Retry Last Message" |
+
+### Error Components
+
+- `ChatErrorCard`: Generic error display with retry button
+- `NetworkErrorCard`: Network-specific error with connection guidance
+- `RepositoryEmptyCard`: Repository not found state with guidance
+- `EmptyState`: Welcome screen with suggested prompts
+
+## Sabotage Mode (Testing)
+
+To test error handling, append query parameters to the chat API:
+
+```
+/api/chat?sabotage=true&sabotage_type=network     # Simulate network failure
+/api/chat?sabotage=true&sabotage_type=429        # Simulate rate limit
+/api/chat?sabotage=true&sabotage_type=500        # Simulate server error
+/api/chat?sabotage=true&sabotage_type=mid-stream # Simulate stream interruption
+/api/chat?sabotage=true&sabotage_type=repository-empty # Simulate empty repository
+```
+
+Or set the `SABOTAGE_MODE=true` environment variable and use:
+```
+/api/chat?sabotage=true&sabotage_type=<type>
+```
+
+### Retry Behavior
+
+- **Retry button** only retries the failed message, not the entire conversation
+- Uses AI SDK's `regenerate` function to re-send the last user message
+- Maintains conversation context while fixing individual errors
+
 ## Folder Structure
 
 ```
@@ -188,9 +237,10 @@ src/
 ├── app/
 │   ├── api/
 │   │   └── chat/
-│   │       └── route.ts        # AI streaming endpoint + repo context injection + tool support
+│   │       └── route.ts        # AI streaming endpoint + repo context injection + tool support + sabotage mode
 │   ├── copilot/
 │   │   └── page.tsx            # Main chat workspace (sidebar + sessions)
+│   ├── error.tsx               # Global error page with sabotage mode support
 │   ├── layout.tsx              # Root layout (fonts, providers, navbar, footer)
 │   ├── page.tsx                # Homepage
 │   └── globals.css             # Tailwind v4 + CSS custom properties
@@ -216,6 +266,8 @@ src/
 │   │   ├── RepositoryInputCard.tsx     # File detection preview
 │   │   ├── RepositoryErrorCard.tsx     # Error display with retry
 │   │   └── RepositorySummarySection.tsx # Reusable section component
+│   ├── errors/
+│   │   └── index.tsx           # Error components (EmptyState, LoadingSkeleton, ChatErrorCard, RetryButton, NetworkErrorCard, RepositoryEmptyCard)
 │   └── ui/
 │       ├── Container.tsx       # Max-width wrapper
 │       ├── Section.tsx         # Vertical spacing

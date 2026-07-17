@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { readFile } from "fs/promises";
-import { join } from "path";
 
 export const repositoryAnalyzerInputSchema = z.object({
   analysisType: z.enum([
@@ -24,12 +23,9 @@ export interface RepositoryAnalysisResult {
   recommendations: string[];
 }
 
-const PROJECT_ROOT = join(process.cwd(), "..");
-
 async function readFileIfExists(filename: string): Promise<string> {
   try {
-    const fullPath = join(PROJECT_ROOT, filename);
-    return await readFile(fullPath, "utf-8");
+    return await readFile(filename, "utf-8");
   } catch {
     return "";
   }

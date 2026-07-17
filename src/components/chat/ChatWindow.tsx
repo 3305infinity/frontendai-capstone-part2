@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useChat, type UIMessage as Message } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { ChatHeader } from "./ChatHeader";
@@ -9,6 +9,10 @@ import { ChatInput } from "./ChatInput";
 import { StopButton } from "./StopButton";
 import { Terminal, Sparkles, MessageSquareCode, Palette, Zap } from "lucide-react";
 import { getMessageContent } from "@/lib/utils";
+import {
+  ChatErrorCard,
+  NetworkErrorCard,
+} from "@/components/errors";
 
 interface ChatWindowProps {
   chatId: string;
@@ -101,8 +105,54 @@ export function ChatWindow({
   const [isServerMockMode, setIsServerMockMode] = useState(true);
   const [hasRestoredMessages, setHasRestoredMessages] = useState(false);
   const [input, setInput] = useState("");
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isSlowResponse, setIsSlowResponse] = useState(false);
+  const [slowResponseTimeout, setSlowResponseTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  // Fetch status of API keys from the server
+  const {
+    messages,
+    status,
+    sendMessage,
+    stop,
+    regenerate,
+    setMessages,
+    error,
+  } = useChat({
+    id: chatId,
+    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    onError: (err) => {
+      const errorMessage = err.message || "An error occurred";
+      if (errorMessage.toLowerCase().includes("network") || 
+          errorMessage.toLowerCase().includes("fetch") ||
+          errorMessage.toLowerCase().includes("connection")) {
+        setConnectionError(errorMessage);
+      }
+    },
+  });
+
+  const isLoading = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    if (isLoading) {
+      const timeout = setTimeout(() => {
+        setIsSlowResponse(true);
+      }, 5000);
+      setSlowResponseTimeout(timeout);
+    } else {
+      setIsSlowResponse(false);
+      if (slowResponseTimeout) {
+        clearTimeout(slowResponseTimeout);
+        setSlowResponseTimeout(null);
+      }
+    }
+
+    return () => {
+      if (slowResponseTimeout) {
+        clearTimeout(slowResponseTimeout);
+      }
+    };
+  }, [isLoading, slowResponseTimeout]);
+
   useEffect(() => {
     async function checkApiStatus() {
       try {
@@ -118,18 +168,33 @@ export function ChatWindow({
     checkApiStatus();
   }, []);
 
-  const {
-    messages,
-    status,
-    sendMessage,
-    stop,
-    regenerate,
-    setMessages,
-    error,
-  } = useChat({
-    id: chatId,
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
-  });
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+  };
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) {
+      if (!input.trim()) {
+        setInput("");
+      }
+      return;
+    }
+    setConnectionError(null);
+    sendMessage({ text: input });
+    setInput("");
+  };
+
+  const handleRetryLastMessage = useCallback(() => {
+    setConnectionError(null);
+    const lastUserMessage = messages.findLast((m) => m.role === "user");
+    if (lastUserMessage) {
+      const content = getMessageContent(lastUserMessage);
+      if (content) {
+        sendMessage({ text: content });
+      }
+    }
+  }, [messages, sendMessage]);
 
   // Restore persisted messages after mount to avoid SSR hydration mismatch
   useEffect(() => {
@@ -138,17 +203,85 @@ export function ChatWindow({
     setHasRestoredMessages(true);
   }, [chatId, setMessages]);
 
-  const isLoading = status === "submitted" || status === "streaming";
+  const hasError = !!error && messages.length > 0;
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
+  const renderErrorState = () => {
+    if (connectionError) {
+      return (
+        <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6">
+          <NetworkErrorCard onRetry={handleRetryLastMessage} />
+        </div>
+      );
+    }
+
+    if (hasError && error) {
+      return (
+        <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6">
+          <ChatErrorCard
+            title="API Error"
+            description={error.message || "An unexpected error occurred while processing your request."}
+            action={{ label: "Retry Last Message", onClick: handleRetryLastMessage }}
+          />
+        </div>
+      );
+    }
+
+    if (isSlowResponse) {
+      return (
+        <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6">
+          <ChatErrorCard
+            title="Slow Response"
+            description="The server is taking longer than expected to respond. Your request may still be processing."
+            action={{ label: "Wait or Retry", onClick: handleRetryLastMessage }}
+            severity="warning"
+          />
+        </div>
+      );
+    }
+
+    return null;
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
-    sendMessage({ text: input });
-    setInput("");
+  const renderEmptyState = () => {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-12 text-center">
+        <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950/20 text-[var(--color-primary)] animate-pulse">
+          <Terminal className="h-7 w-7" />
+        </div>
+
+        <h2 className="text-xl font-bold tracking-tight text-[var(--color-text)] sm:text-2xl">
+          Engineering Project Copilot
+        </h2>
+        <p className="mt-2 max-w-md text-sm text-[var(--color-muted)] leading-relaxed">
+          I understand this repository. Ask me about its architecture, structure, technologies, or generate project documentation.
+        </p>
+
+        {/* Suggested Prompts Grid */}
+        <div className="mt-10 grid w-full max-w-3xl gap-4 sm:grid-cols-2">
+          {suggestedPrompts.map((item, idx) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={idx}
+                onClick={() => handleSuggestedPromptClick(item.prompt)}
+                className="flex flex-col items-start rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-left transition hover:border-[var(--color-primary)] hover:bg-[var(--color-background)] hover:shadow-sm"
+                type="button"
+              >
+                <div className={`rounded-lg p-2 ${item.color}`}>
+                  <Icon className="h-4.5 w-4.5" />
+                </div>
+                <h3 className="mt-3 text-sm font-semibold text-[var(--color-text)]">
+                  {item.title}
+                </h3>
+                <p className="mt-1 text-xs text-[var(--color-muted)] line-clamp-2 leading-normal">
+                  {item.prompt}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   // Sync messages list changes back to localStorage
@@ -232,45 +365,8 @@ export function ChatWindow({
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent" />
           </div>
         ) : messages.length === 0 ? (
-          /* Empty Welcome State */
-          <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-12 text-center">
-            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950/20 text-[var(--color-primary)] animate-pulse">
-              <Terminal className="h-7 w-7" />
-            </div>
-
-            <h2 className="text-xl font-bold tracking-tight text-[var(--color-text)] sm:text-2xl">
-              Engineering Project Copilot
-            </h2>
-            <p className="mt-2 max-w-md text-sm text-[var(--color-muted)] leading-relaxed">
-              I understand this repository. Ask me about its architecture, structure, technologies, or generate project documentation.
-            </p>
-
-            {/* Suggested Prompts Grid */}
-            <div className="mt-10 grid w-full max-w-3xl gap-4 sm:grid-cols-2">
-              {suggestedPrompts.map((item, idx) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => handleSuggestedPromptClick(item.prompt)}
-                    className="flex flex-col items-start rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-left transition hover:border-[var(--color-primary)] hover:bg-[var(--color-background)] hover:shadow-sm"
-                    type="button"
-                  >
-                    <div className={`rounded-lg p-2 ${item.color}`}>
-                      <Icon className="h-4.5 w-4.5" />
-                    </div>
-                    <h3 className="mt-3 text-sm font-semibold text-[var(--color-text)]">
-                      {item.title}
-                    </h3>
-                    <p className="mt-1 text-xs text-[var(--color-muted)] line-clamp-2 leading-normal">
-                      {item.prompt}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
+          renderEmptyState()
+        ) : renderErrorState() || (
           /* Message List */
           <ChatMessage
             messages={messages}

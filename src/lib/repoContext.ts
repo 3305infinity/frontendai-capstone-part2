@@ -1,7 +1,4 @@
 import { readFile } from "fs/promises";
-import { join } from "path";
-
-const PROJECT_ROOT = join(process.cwd(), "..");
 
 const CONTEXT_FILES = [
   "README.md",
@@ -20,7 +17,7 @@ export async function buildRepoContext(): Promise<RepoContext> {
   const files: Record<string, string> = {};
   const readPromises = CONTEXT_FILES.map(async (relativePath) => {
     try {
-      const fullPath = join(PROJECT_ROOT, relativePath);
+      const fullPath = relativePath;
       const content = await readFile(fullPath, "utf-8");
       files[relativePath] = content;
     } catch {
