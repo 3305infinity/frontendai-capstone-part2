@@ -3,8 +3,10 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
+  tool,
   generateId,
   type UIMessage,
+  type UIMessageChunk,
 } from "ai";
 import { getGoogleProvider, isApiKeyConfigured } from "@/lib/ai";
 import { SYSTEM_PROMPT } from "@/lib/prompts";
@@ -13,6 +15,19 @@ import { analyzeRepository } from "@/lib/tools";
 import { z } from "zod";
 
 export const maxDuration = 30;
+
+const repositoryAnalyzerTool = tool({
+  description: "Analyze the current repository and return structured metadata about the project including project name, framework, language, dependencies, scripts, architecture summary, documentation status, and recommendations.",
+  inputSchema: z.object({
+    analysisType: z.enum(["overview", "architecture", "tech-stack", "documentation"]),
+  }),
+  execute: async (input) => {
+    const analysis = await analyzeRepository({
+      analysisType: input.analysisType,
+    });
+    return analysis;
+  },
+});
 
 export async function GET() {
   return new Response(JSON.stringify({ isApiKeyConfigured: isApiKeyConfigured() }), {
@@ -44,18 +59,7 @@ export async function POST(req: Request) {
           messages: await convertToModelMessages(messages),
           system: enhancedSystemPrompt,
           tools: {
-            repositoryAnalyzer: {
-              description: "Analyze the current repository and return structured metadata about the project including project name, framework, language, dependencies, scripts, architecture summary, documentation status, and recommendations.",
-              inputSchema: z.object({
-                analysisType: z.enum(["overview", "architecture", "tech-stack", "documentation"]),
-              }),
-              execute: async (input) => {
-                const analysis = await analyzeRepository({
-                  analysisType: input.analysisType,
-                });
-                return analysis;
-              },
-            },
+            repositoryAnalyzer: repositoryAnalyzerTool,
           },
           toolChoice: "auto",
         });
@@ -72,16 +76,23 @@ export async function POST(req: Request) {
                          lastContent?.match(/analyze\s+this\s+repo/i);
 
     if (toolCallMatch) {
-      void generateId();
       const input = { analysisType: "overview" } as const;
       const analysisResult = await analyzeRepository(input);
 
-      const stream = createUIMessageStream({
-        async execute({ writer }) {
-          const messageId = generateId();
-          writer.write({ type: "text-start", id: messageId });
-
-          const responseText = `## Repository Analysis Complete
+      const mockToolResult = {
+        id: generateId(),
+        role: "assistant" as const,
+        parts: [
+          {
+            type: "tool-repositoryAnalyzer" as const,
+            toolCallId: generateId(),
+            state: "output-available" as const,
+            input,
+            output: analysisResult,
+          },
+          {
+            type: "text" as const,
+            text: `## Repository Analysis Complete
 
 I've analyzed the repository and found the following:
 
@@ -107,15 +118,30 @@ ${analysisResult.architectureSummary}
 ${analysisResult.documentationStatus}
 
 **Recommendations**
-${analysisResult.recommendations.map((r) => `- ${r}`).join("\n")}`;
-
-          const tokens = tokenize(responseText);
-          for (const token of tokens) {
-            writer.write({ type: "text-delta", id: messageId, delta: token });
-            await delay(15);
+${analysisResult.recommendations.map((r) => `- ${r}`).join("\n")}`
           }
+        ] as const,
+      } as UIMessage;
 
-          writer.write({ type: "text-end", id: messageId });
+      const stream = createUIMessageStream({
+        async execute({ writer }) {
+          const parts = mockToolResult.parts;
+          for (const part of parts) {
+            if (part.type === "text") {
+              const messageId = generateId();
+              writer.write({ type: "text-start", id: messageId });
+              
+              const tokens = tokenize(part.text);
+              for (const token of tokens) {
+                writer.write({ type: "text-delta", id: messageId, delta: token });
+                await delay(15);
+              }
+              
+              writer.write({ type: "text-end", id: messageId });
+            } else {
+              writer.write(part as unknown as UIMessageChunk);
+            }
+          }
         },
       });
 

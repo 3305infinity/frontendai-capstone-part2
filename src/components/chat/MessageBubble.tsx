@@ -49,63 +49,33 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
     }
   };
 
-  const content = getMessageContent(message);
-  const isRepositoryAnalysis = content?.includes("## Repository Analysis Complete") ?? false;
-
-  const parseRepositoryAnalysis = (text: string): RepositoryAnalysisResult | null => {
-    try {
-      const extractValue = (label: string): string => {
-        const regex = new RegExp(`\\*\\*${label}\\*\\*\\s*-\\s*(.+?)(?=\\n\\*\\*|$)`, 'm');
-        const match = text.match(regex);
-        return match ? match[1].trim() : "";
-      };
-
-      const extractList = (label: string): string[] => {
-        const regex = new RegExp(`\\*\\*${label}\\*\\*\\s*\n(.+?)(?=\\n\\*\\*|$)`, 'm');
-        const match = text.match(regex);
-        if (!match) return [];
-        return match[1].split('\n').map((l) => l.replace(/^-\s*/, '').trim()).filter(Boolean);
-      };
-
-      const extractObject = (label: string): Record<string, string> => {
-        const regex = new RegExp(`\\*\\*${label}\\*\\*\\s*\n(.+?)(?=\\n\\*\\*|$)`, 'm');
-        const match = text.match(regex);
-        if (!match) return {};
-        const result: Record<string, string> = {};
-        match[1].split('\n').forEach((line) => {
-          const itemMatch = line.match(/^-\s*\*\*([^:]+)\*\*:\s*(.+)$/);
-          if (itemMatch) {
-            result[itemMatch[1].trim()] = itemMatch[2].trim();
-          }
-        });
-        return result;
-      };
-
-      const projectName = extractValue("Project Name");
-      const framework = extractValue("Framework");
-      const language = extractValue("Language");
-      const dependencies = extractList("Dependencies");
-      const scripts = extractObject("Scripts");
-      const architectureSummary = extractValue("Architecture Summary");
-      const documentationStatus = extractValue("Documentation Status");
-      const recommendations = extractList("Recommendations");
-
-      if (!projectName) return null;
-
-      return {
-        projectName,
-        framework,
-        language,
-        dependencies,
-        scripts,
-        architectureSummary,
-        documentationStatus,
-        recommendations,
-      };
-    } catch {
-      return null;
-    }
+  const hasToolResult = (): boolean => {
+    if (!message.parts) return false;
+    return message.parts.some((part) => {
+      if (typeof part === "object" && part !== null) {
+        const p = part as Record<string, unknown>;
+        return p.type === "tool-repositoryAnalyzer" && "output" in p && p.output !== undefined;
+      }
+      return false;
+    });
   };
+
+  const getToolResultFromMessage = (): RepositoryAnalysisResult | null => {
+    if (!message.parts) return null;
+    
+    for (const part of message.parts) {
+      if (typeof part === "object" && part !== null) {
+        const p = part as Record<string, unknown>;
+        if (p.type === "tool-repositoryAnalyzer" && "output" in p && p.output) {
+          return p.output as RepositoryAnalysisResult;
+        }
+      }
+    }
+    return null;
+  };
+
+  const content = getMessageContent(message);
+  const isRepositoryAnalysis = hasToolResult() || (content?.includes("## Repository Analysis Complete") ?? false);
 
   const renderContent = () => {
     if (isError) {
@@ -123,10 +93,17 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
       );
     }
 
-    if (isRepositoryAnalysis && content) {
-      const analysis = parseRepositoryAnalysis(content);
-      if (analysis) {
-        return <RepositoryAnalysisCard analysis={analysis} />;
+    if (isRepositoryAnalysis) {
+      const toolResult = getToolResultFromMessage();
+      if (toolResult) {
+        return <RepositoryAnalysisCard analysis={toolResult} />;
+      }
+      
+      if (content) {
+        const analysis = parseRepositoryAnalysis(content);
+        if (analysis) {
+          return <RepositoryAnalysisCard analysis={analysis} />;
+        }
       }
     }
 
@@ -234,4 +211,59 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
       </div>
     </div>
   );
+}
+
+function parseRepositoryAnalysis(text: string): RepositoryAnalysisResult | null {
+  try {
+    const extractValue = (label: string): string => {
+      const regex = new RegExp(`\\*\\*${label}\\*\\*\\s*-\\s*(.+?)(?=\\n\\*\\*|$)`, 'm');
+      const match = text.match(regex);
+      return match ? match[1].trim() : "";
+    };
+
+    const extractList = (label: string): string[] => {
+      const regex = new RegExp(`\\*\\*${label}\\*\\*\\s*\n(.+?)(?=\\n\\*\\*|$)`, 'm');
+      const match = text.match(regex);
+      if (!match) return [];
+      return match[1].split('\n').map((l) => l.replace(/^-\s*/, '').trim()).filter(Boolean);
+    };
+
+    const extractObject = (label: string): Record<string, string> => {
+      const regex = new RegExp(`\\*\\*${label}\\*\\*\\s*\n(.+?)(?=\\n\\*\\*|$)`, 'm');
+      const match = text.match(regex);
+      if (!match) return {};
+      const result: Record<string, string> = {};
+      match[1].split('\n').forEach((line) => {
+        const itemMatch = line.match(/^-\s*\*\*([^:]+)\*\*:\s*(.+)$/);
+        if (itemMatch) {
+          result[itemMatch[1].trim()] = itemMatch[2].trim();
+        }
+      });
+      return result;
+    };
+
+    const projectName = extractValue("Project Name");
+    const framework = extractValue("Framework");
+    const language = extractValue("Language");
+    const dependencies = extractList("Dependencies");
+    const scripts = extractObject("Scripts");
+    const architectureSummary = extractValue("Architecture Summary");
+    const documentationStatus = extractValue("Documentation Status");
+    const recommendations = extractList("Recommendations");
+
+    if (!projectName) return null;
+
+    return {
+      projectName,
+      framework,
+      language,
+      dependencies,
+      scripts,
+      architectureSummary,
+      documentationStatus,
+      recommendations,
+    };
+  } catch {
+    return null;
+  }
 }
