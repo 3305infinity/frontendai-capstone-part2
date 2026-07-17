@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type UIMessage as Message } from "@ai-sdk/react";
+import { type UIMessage } from "@ai-sdk/react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { Copy, Check, RotateCcw, AlertCircle } from "lucide-react";
 import { loadPersistedSettings } from "@/lib/settingsStorage";
 import { getMessageContent } from "@/lib/utils";
+import { RepositoryAnalysisCard } from "@/components/tools/RepositoryAnalysisCard";
+import { RepositoryErrorCard } from "@/components/tools/RepositoryErrorCard";
+import type { RepositoryAnalysisResult } from "@/lib/tools";
 
 interface MessageBubbleProps {
   message: Message;
@@ -14,12 +17,13 @@ interface MessageBubbleProps {
   isError?: boolean;
 }
 
+type Message = UIMessage;
+
 export function MessageBubble({ message, isLast, onReload, isError = false }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
   const [userInitials, setUserInitials] = useState("U");
 
-  // Load user profile initials on mount
   useEffect(() => {
     try {
       const settings = loadPersistedSettings();
@@ -31,7 +35,7 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
         }
       }
     } catch {
-      // Fallback silently
+      // Silently fail
     }
   }, []);
 
@@ -45,6 +49,94 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
     }
   };
 
+  const content = getMessageContent(message);
+  const isRepositoryAnalysis = content?.includes("## Repository Analysis Complete") ?? false;
+
+  const parseRepositoryAnalysis = (text: string): RepositoryAnalysisResult | null => {
+    try {
+      const extractValue = (label: string): string => {
+        const regex = new RegExp(`\\*\\*${label}\\*\\*\\s*-\\s*(.+?)(?=\\n\\*\\*|$)`, 'm');
+        const match = text.match(regex);
+        return match ? match[1].trim() : "";
+      };
+
+      const extractList = (label: string): string[] => {
+        const regex = new RegExp(`\\*\\*${label}\\*\\*\\s*\n(.+?)(?=\\n\\*\\*|$)`, 'm');
+        const match = text.match(regex);
+        if (!match) return [];
+        return match[1].split('\n').map((l) => l.replace(/^-\s*/, '').trim()).filter(Boolean);
+      };
+
+      const extractObject = (label: string): Record<string, string> => {
+        const regex = new RegExp(`\\*\\*${label}\\*\\*\\s*\n(.+?)(?=\\n\\*\\*|$)`, 'm');
+        const match = text.match(regex);
+        if (!match) return {};
+        const result: Record<string, string> = {};
+        match[1].split('\n').forEach((line) => {
+          const itemMatch = line.match(/^-\s*\*\*([^:]+)\*\*:\s*(.+)$/);
+          if (itemMatch) {
+            result[itemMatch[1].trim()] = itemMatch[2].trim();
+          }
+        });
+        return result;
+      };
+
+      const projectName = extractValue("Project Name");
+      const framework = extractValue("Framework");
+      const language = extractValue("Language");
+      const dependencies = extractList("Dependencies");
+      const scripts = extractObject("Scripts");
+      const architectureSummary = extractValue("Architecture Summary");
+      const documentationStatus = extractValue("Documentation Status");
+      const recommendations = extractList("Recommendations");
+
+      if (!projectName) return null;
+
+      return {
+        projectName,
+        framework,
+        language,
+        dependencies,
+        scripts,
+        architectureSummary,
+        documentationStatus,
+        recommendations,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const renderContent = () => {
+    if (isError) {
+      return (
+        <div className="space-y-3">
+          <RepositoryErrorCard
+            error={{
+              title: "Repository Analysis Failed",
+              reason: "Unable to read repository files or parse package.json.",
+              suggestedFix: "Ensure README.md and package.json exist in the repository root.",
+            }}
+            onRetry={onReload}
+          />
+        </div>
+      );
+    }
+
+    if (isRepositoryAnalysis && content) {
+      const analysis = parseRepositoryAnalysis(content);
+      if (analysis) {
+        return <RepositoryAnalysisCard analysis={analysis} />;
+      }
+    }
+
+    if (!content) {
+      return <span className="italic text-[var(--color-muted)]">Empty response</span>;
+    }
+
+    return <MarkdownRenderer content={content} />;
+  };
+
   return (
     <div
       className={`group flex w-full gap-4 py-6 px-4 md:px-6 transition-colors ${
@@ -53,7 +145,6 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
           : "bg-white dark:bg-zinc-900/40 border-y border-[var(--color-border)]/40"
       }`}
     >
-      {/* Avatar */}
       <div className="flex shrink-0 select-none items-start">
         {isUser ? (
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white shadow-sm">
@@ -66,9 +157,7 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
         )}
       </div>
 
-      {/* Message Content & Actions Container */}
       <div className="flex-1 space-y-2 overflow-hidden">
-        {/* Sender Label */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-[var(--color-text)]">
             {isUser ? "You" : "Berozgar Copilot"}
@@ -86,16 +175,10 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
           </span>
         </div>
 
-        {/* Message Content Bubble */}
         <div className="text-sm">
-          {isError ? null : getMessageContent(message) ? (
-            <MarkdownRenderer content={getMessageContent(message)} />
-          ) : (
-            <span className="italic text-[var(--color-muted)]">Empty response</span>
-          )}
+          {renderContent()}
         </div>
 
-        {/* Action Row */}
         <div className="flex flex-wrap items-center gap-3 pt-2 text-[var(--color-muted)] opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
           <button
             onClick={handleCopyMessage}
@@ -129,9 +212,8 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
           )}
         </div>
 
-        {/* Error Alert Box */}
         {isError && (
-          <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 dark:border-red-950/40 dark:bg-red-950/20 p-3.5 text-xs text-red-600 dark:text-red-400">
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 dark:border-red-950/40 dark:bg-red-950/20 p-3.5 text-xs text-red-600 dark:text-red-400">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="space-y-2">
               <p className="font-semibold">The request failed.</p>

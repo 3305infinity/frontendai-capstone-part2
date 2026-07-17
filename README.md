@@ -50,6 +50,7 @@ The copilot can explain the repository's architecture, summarize its folder stru
 - **Suggested prompts**: Six repository-specific prompts for quick exploration.
 - **Export conversations**: Download chat history as Markdown.
 - **Mock mode**: Works offline without an API key using simulated streaming.
+- **AI SDK Tool Calling**: `repositoryAnalyzer` tool inspects repository files and returns structured metadata rendered as professional UI components.
 
 ## Tech Stack
 
@@ -86,6 +87,84 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Without an API key, the application runs in **Mock Mode** with simulated streaming responses.
 
+## AI SDK Tool: repositoryAnalyzer
+
+The `repositoryAnalyzer` tool provides production-quality AI SDK Tool Calling that inspects repository files and returns structured metadata.
+
+### Purpose
+
+Analyze the current repository and return structured metadata about the project including project name, framework, language, dependencies, scripts, architecture summary, documentation status, and recommendations.
+
+### Input Schema
+
+```typescript
+{
+  analysisType: "overview" | "architecture" | "tech-stack" | "documentation"
+}
+```
+
+### Output Shape
+
+```typescript
+{
+  projectName: string;
+  framework: string;
+  language: string;
+  dependencies: string[];
+  scripts: Record<string, string>;
+  architectureSummary: string;
+  documentationStatus: string;
+  recommendations: string[];
+}
+```
+
+### Example Response
+
+```json
+{
+  "projectName": "Berozgar",
+  "framework": "Next.js",
+  "language": "TypeScript",
+  "dependencies": ["@ai-sdk/google", "next", "react", "tailwindcss"],
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "test": "vitest run"
+  },
+  "architectureSummary": "Repository context loaded from: README.md, package.json",
+  "documentationStatus": "README.md, package.json",
+  "recommendations": [
+    "Add ARCHITECTURE.md to document system design",
+    "Add workflow.md for development process documentation"
+  ]
+}
+```
+
+### Tool States
+
+1. **Input Streaming**: Animated card with "Analyzing repository..." message and spinner
+2. **Input Available**: Repository files detected with small previews
+3. **Output Available**: `RepositoryAnalysisCard` component renders structured data with icons
+4. **Output Error**: `RepositoryErrorCard` displays error with suggested fix and retry button
+
+### Usage
+
+The tool is automatically available to the AI model. Users can trigger it by asking questions like:
+
+- "Analyze this repository"
+- "What is this project about?"
+- "Show me the tech stack"
+
+The LLM can decide to call the tool based on the user's query, and the result is rendered as a beautiful React component instead of raw JSON.
+
+### Components
+
+- `RepositoryAnalysisCard`: Renders the analysis result with professional SaaS design
+- `RepositoryLoadingCard`: Shows loading state with animated progress
+- `RepositoryInputCard`: Displays detected files and preview
+- `RepositoryErrorCard`: Error handling with retry capability
+- `RepositorySummarySection`: Reusable section component for displaying metadata
+
 ## Usage
 
 1. Navigate to `/copilot`.
@@ -110,7 +189,7 @@ src/
 ├── app/
 │   ├── api/
 │   │   └── chat/
-│   │       └── route.ts        # AI streaming endpoint + repo context injection
+│   │       └── route.ts        # AI streaming endpoint + repo context injection + tool support
 │   ├── copilot/
 │   │   └── page.tsx            # Main chat workspace (sidebar + sessions)
 │   ├── layout.tsx              # Root layout (fonts, providers, navbar, footer)
@@ -121,8 +200,8 @@ src/
 │   │   ├── ChatWindow.tsx      # Chat orchestrator + suggested prompts
 │   │   ├── ChatInput.tsx       # Auto-resize textarea
 │   │   ├── ChatHeader.tsx      # Title, status, export/clear actions
-│   │   ├── ChatMessage.tsx     # Message list + auto-scroll
-│   │   ├── MessageBubble.tsx   # Per-message rendering
+│   │   ├── ChatMessage.tsx     # Message list + auto-scroll + tool result handling
+│   │   ├── MessageBubble.tsx   # Per-message rendering + tool cards
 │   │   ├── MarkdownRenderer.tsx # react-markdown + custom renderers
 │   │   ├── CodeBlock.tsx       # Syntax-highlighted code blocks
 │   │   ├── StopButton.tsx      # Stop generation control
@@ -131,6 +210,13 @@ src/
 │   ├── layout/
 │   │   ├── Navbar.tsx          # Sticky navigation
 │   │   └── Footer.tsx          # Site footer
+│   ├── tools/
+│   │   ├── index.ts            # Component exports
+│   │   ├── RepositoryAnalysisCard.tsx   # Analysis result card
+│   │   ├── RepositoryLoadingCard.tsx   # Loading state animation
+│   │   ├── RepositoryInputCard.tsx     # File detection preview
+│   │   ├── RepositoryErrorCard.tsx     # Error display with retry
+│   │   └── RepositorySummarySection.tsx # Reusable section component
 │   └── ui/
 │       ├── Container.tsx       # Max-width wrapper
 │       ├── Section.tsx         # Vertical spacing
@@ -140,10 +226,11 @@ src/
 │   ├── ai.ts                   # Google provider setup
 │   ├── prompts.ts              # System prompt (repository-aware)
 │   ├── repoContext.ts          # Filesystem reader for project files
+│   ├── tools.ts                # Tool schema + implementation
 │   ├── schema.ts               # Zod schemas
 │   ├── settingsStorage.ts      # localStorage persistence
 │   ├── theme.ts                # Theme resolution + application
-│   └── utils.ts                # cn(), getMessageContent()
+│   └── utils.ts                # cn(), getMessageContent(), getToolResult()
 └── test/
     └── setup.ts                # Test environment setup
 ```

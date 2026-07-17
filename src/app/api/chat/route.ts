@@ -9,6 +9,8 @@ import {
 import { getGoogleProvider, isApiKeyConfigured } from "@/lib/ai";
 import { SYSTEM_PROMPT } from "@/lib/prompts";
 import { buildRepoContext, formatRepoContextForPrompt } from "@/lib/repoContext";
+import { analyzeRepository } from "@/lib/tools";
+import { z } from "zod";
 
 export const maxDuration = 30;
 
@@ -34,7 +36,6 @@ export async function POST(req: Request) {
 
     const enhancedSystemPrompt = `${SYSTEM_PROMPT}\n\n${repoContextPrompt}`;
 
-    // 1. Real API mode if key is configured
     if (isApiKeyConfigured()) {
       const provider = getGoogleProvider();
       if (provider) {
@@ -42,16 +43,88 @@ export async function POST(req: Request) {
           model: provider("gemini-1.5-flash"),
           messages: await convertToModelMessages(messages),
           system: enhancedSystemPrompt,
+          tools: {
+            repositoryAnalyzer: {
+              description: "Analyze the current repository and return structured metadata about the project including project name, framework, language, dependencies, scripts, architecture summary, documentation status, and recommendations.",
+              inputSchema: z.object({
+                analysisType: z.enum(["overview", "architecture", "tech-stack", "documentation"]),
+              }),
+              execute: async (input) => {
+                const analysis = await analyzeRepository({
+                  analysisType: input.analysisType,
+                });
+                return analysis;
+              },
+            },
+          },
+          toolChoice: "auto",
         });
 
         return result.toUIMessageStreamResponse();
       }
     }
 
-    // 2. Fallback Mock Mode — use createUIMessageStream so useChat can parse it
     const lastMessage = messages[messages.length - 1];
     const lastContent = getUIMessageText(lastMessage);
-    const mockResponseText = getMockResponse(lastContent);
+
+    const toolCallMatch = lastContent?.match(/analyze\s+repository/i) ||
+                         lastContent?.match(/repository\s+analyzer/i) ||
+                         lastContent?.match(/analyze\s+this\s+repo/i);
+
+    if (toolCallMatch) {
+      void generateId();
+      const input = { analysisType: "overview" } as const;
+      const analysisResult = await analyzeRepository(input);
+
+      const stream = createUIMessageStream({
+        async execute({ writer }) {
+          const messageId = generateId();
+          writer.write({ type: "text-start", id: messageId });
+
+          const responseText = `## Repository Analysis Complete
+
+I've analyzed the repository and found the following:
+
+**Project Overview**
+- **Project Name:** ${analysisResult.projectName}
+- **Framework:** ${analysisResult.framework}
+- **Language:** ${analysisResult.language}
+
+**Dependencies**
+${analysisResult.dependencies.length > 0 
+  ? analysisResult.dependencies.map((d) => `- ${d}`).join("\n")
+  : "- No dependencies found"}
+
+**Scripts**
+${Object.entries(analysisResult.scripts).length > 0
+  ? Object.entries(analysisResult.scripts).map(([k, v]) => `- **${k}**: ${v}`).join("\n")
+  : "- No scripts defined"}
+
+**Architecture Summary**
+${analysisResult.architectureSummary}
+
+**Documentation Status**
+${analysisResult.documentationStatus}
+
+**Recommendations**
+${analysisResult.recommendations.map((r) => `- ${r}`).join("\n")}`;
+
+          const tokens = tokenize(responseText);
+          for (const token of tokens) {
+            writer.write({ type: "text-delta", id: messageId, delta: token });
+            await delay(15);
+          }
+
+          writer.write({ type: "text-end", id: messageId });
+        },
+      });
+
+      return createUIMessageStreamResponse({ stream });
+    }
+
+    const lastMessageCheck = messages[messages.length - 1];
+    const lastContentCheck = getUIMessageText(lastMessageCheck);
+    const mockResponseText = getMockResponse(lastContentCheck);
 
     const stream = createUIMessageStream({
       async execute({ writer }) {
@@ -79,7 +152,6 @@ export async function POST(req: Request) {
   }
 }
 
-/** Extract plain text from a UIMessage (handles both parts-based and legacy content). */
 function getUIMessageText(message: UIMessage): string {
   if (!message) return "";
   const msg = message as unknown as Record<string, unknown>;
@@ -93,7 +165,6 @@ function getUIMessageText(message: UIMessage): string {
   return "";
 }
 
-/** Simple tokenizer that splits text into words and whitespace. */
 function tokenize(text: string): string[] {
   const tokens: string[] = [];
   const regex = /\s+|\S+/g;
@@ -104,14 +175,10 @@ function tokenize(text: string): string[] {
   return tokens;
 }
 
-/** Small delay helper. */
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Returns a rich markdown mock response based on the user's message.
- */
 function getMockResponse(userMessage: string): string {
   const query = userMessage.toLowerCase();
 
