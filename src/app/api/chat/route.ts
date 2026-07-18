@@ -1,12 +1,11 @@
 import {
   streamText,
   convertToModelMessages,
-  createUIMessageStream,
   createUIMessageStreamResponse,
   tool,
   generateId,
   type UIMessage,
-  type UIMessageChunk,
+  MockLanguageModelV1,
 } from "ai";
 import { getGoogleProvider, isApiKeyConfigured } from "@/lib/ai";
 import { SYSTEM_PROMPT } from "@/lib/prompts";
