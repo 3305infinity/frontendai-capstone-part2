@@ -39,3 +39,5 @@ Refer to these directories to understand specific logic and avoid full‑codebas
 - `src/lib/ai.ts` – AI integration logic.  
 - `src/app/settings/page.tsx` – Settings page entry.  
 - `src/components/Providers.tsx` – Context providers initialization.
+
+
