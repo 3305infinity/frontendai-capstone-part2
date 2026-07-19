@@ -108,7 +108,28 @@ export async function POST(req: Request) {
           toolChoice: "auto",
         });
 
-        return result.toUIMessageStreamResponse();
+        return result.toUIMessageStreamResponse({
+          onError: (error) => {
+            const message = error instanceof Error ? error.message : "An error occurred";
+            const lower = message.toLowerCase();
+            if (lower.includes("quota exceeded") || lower.includes("resource_exhausted")) {
+              return "Gemini API quota exceeded. Please check your Google AI Studio quota or switch to Mock Mode.";
+            }
+            if (lower.includes("not found")) {
+              const modelMatch = message.match(/models\/([^\s]+)/i);
+              return modelMatch
+                ? `Gemini model not found: ${modelMatch[1]}. Please update your code to use a newer model.`
+                : "The requested Gemini model was not found.";
+            }
+            if (lower.includes("rate limit")) {
+              const retryMatch = message.match(/retry in (\d+)s/);
+              return retryMatch
+                ? `Rate limit exceeded. Please retry in ${retryMatch[1]} seconds.`
+                : "Rate limit exceeded. Please wait before retrying.";
+            }
+            return message;
+          },
+        });
       }
     }
 
@@ -191,9 +212,8 @@ export async function POST(req: Request) {
 
       return createUIMessageStreamResponse({ stream });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
     console.error("Error in AI Copilot chat route:", error);
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });

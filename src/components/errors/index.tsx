@@ -61,6 +61,39 @@ export function NetworkErrorCard({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+export function ApiQuotaErrorCard({ onRetry }: { onRetry: () => void }) {
+  return (
+    <ChatErrorCard
+      title="Gemini API Quota Exceeded"
+      description="You have exceeded your current quota. Please check your Google AI Studio quota or switch to Mock Mode."
+      action={{ label: "Retry", onClick: onRetry }}
+      severity="warning"
+    />
+  );
+}
+
+export function ModelNotFoundErrorCard({ modelName }: { modelName: string }) {
+  return (
+    <ChatErrorCard
+      title="Gemini Model Not Found"
+      description={`The model '${modelName}' is not available. Please update your code to use a newer model.`}
+      action={{ label: "Switch to Mock Mode", onClick: () => {} }}
+      severity="warning"
+    />
+  );
+}
+
+export function RateLimitErrorCard({ retryAfter, onRetry }: { retryAfter?: number; onRetry: () => void }) {
+  return (
+    <ChatErrorCard
+      title="Rate Limit Exceeded"
+      description={`Too many requests. Please wait ${retryAfter ? `${retryAfter} seconds` : 'a while'} before trying again.`}
+      action={{ label: "Retry", onClick: onRetry }}
+      severity="warning"
+    />
+  );
+}
+
 export function RepositoryEmptyCard() {
   return (
     <div className="w-full max-w-3xl rounded-2xl border border-[var(--color-border)]/50 bg-[var(--color-surface)]/30 p-8 text-center">

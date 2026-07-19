@@ -12,6 +12,9 @@ import { getMessageContent } from "@/lib/utils";
 import {
   ChatErrorCard,
   NetworkErrorCard,
+  ApiQuotaErrorCard,
+  ModelNotFoundErrorCard,
+  RateLimitErrorCard,
 } from "@/components/errors";
 
 interface ChatWindowProps {
@@ -122,13 +125,49 @@ export function ChatWindow({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
     onError: (err) => {
       const errorMessage = err.message || "An error occurred";
-      if (errorMessage.toLowerCase().includes("network") || 
+      if (errorMessage.toLowerCase().includes("network") ||
           errorMessage.toLowerCase().includes("fetch") ||
           errorMessage.toLowerCase().includes("connection")) {
         setConnectionError(errorMessage);
       }
     },
   });
+
+  const [lastErrorMessage, setLastErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status === "error" && error) {
+      setLastErrorMessage(error.message || "An error occurred");
+    } else if (status !== "error") {
+      setLastErrorMessage(null);
+    }
+  }, [status, error]);
+
+  const getErrorDetails = (errorMessage: string | undefined) => {
+    if (!errorMessage) return null;
+
+    const msg = errorMessage.toLowerCase();
+
+    if (msg.includes("quota exceeded") || msg.includes("resource_exhausted")) {
+      return { type: "quota" as const, retryAfter: undefined };
+    }
+
+    if (msg.includes("404") || msg.includes("not found")) {
+      const modelMatch = errorMessage.match(/models\/([^\s]+)/i);
+      return { type: "model-not-found" as const, modelName: modelMatch ? modelMatch[1] : "unknown" };
+    }
+
+    if (msg.includes("429") || msg.includes("rate limit")) {
+      const retryMatch = errorMessage.match(/retry in (\d+)s/);
+      return { type: "rate-limit" as const, retryAfter: retryMatch ? parseInt(retryMatch[1], 10) : undefined };
+    }
+
+    if (msg.includes("an error occurred") || msg.includes("unexpected error")) {
+      return { type: "generic" as const, message: errorMessage };
+    }
+
+    return null;
+  };
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -215,11 +254,50 @@ export function ChatWindow({
     }
 
     if (hasError && error) {
+      const errorMessage = lastErrorMessage || error.message;
+      const errorDetails = getErrorDetails(errorMessage);
+      
+      if (errorDetails?.type === "quota") {
+        return (
+          <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6">
+            <ApiQuotaErrorCard onRetry={handleRetryLastMessage} />
+          </div>
+        );
+      }
+      
+      if (errorDetails?.type === "model-not-found") {
+        return (
+          <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6">
+            <ModelNotFoundErrorCard modelName={errorDetails.modelName || "unknown"} />
+          </div>
+        );
+      }
+      
+      if (errorDetails?.type === "rate-limit") {
+        return (
+          <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6">
+            <RateLimitErrorCard retryAfter={errorDetails.retryAfter} onRetry={handleRetryLastMessage} />
+          </div>
+        );
+      }
+
+      if (errorDetails?.type === "generic") {
+        return (
+          <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6">
+            <ChatErrorCard
+              title="API Error"
+              description={errorMessage || "An unexpected error occurred while processing your request."}
+              action={{ label: "Retry Last Message", onClick: handleRetryLastMessage }}
+            />
+          </div>
+        );
+      }
+
       return (
         <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6">
           <ChatErrorCard
             title="API Error"
-            description={error.message || "An unexpected error occurred while processing your request."}
+            description={errorMessage || "An unexpected error occurred while processing your request."}
             action={{ label: "Retry Last Message", onClick: handleRetryLastMessage }}
           />
         </div>
