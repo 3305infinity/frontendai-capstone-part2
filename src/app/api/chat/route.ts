@@ -1,11 +1,11 @@
 import {
   streamText,
   convertToModelMessages,
+  createUIMessageStream,
   createUIMessageStreamResponse,
   tool,
   generateId,
   type UIMessage,
-  MockLanguageModelV1,
 } from "ai";
 import { getGoogleProvider, isApiKeyConfigured } from "@/lib/ai";
 import { SYSTEM_PROMPT } from "@/lib/prompts";
@@ -80,83 +80,6 @@ export async function POST(req: Request) {
     });
   }
 
-  if (sabotageOptions.sabotageType === "repository-empty") {
-    const emptyResult = {
-      projectName: "Unknown Project",
-      framework: "Unknown",
-      language: "JavaScript",
-      dependencies: [],
-      scripts: {},
-      architectureSummary: "No repository files found to analyze.",
-      documentationStatus: "No README.md or package.json found",
-      recommendations: ["Add README.md to document the project", "Add package.json to define dependencies"],
-    };
-
-    const mockToolResult = {
-      id: generateId(),
-      role: "assistant" as const,
-      parts: [
-        {
-          type: "tool-repositoryAnalyzer" as const,
-          toolCallId: generateId(),
-          state: "output-available" as const,
-          input: { analysisType: "overview" } as const,
-          output: emptyResult,
-        },
-        {
-          type: "text" as const,
-          text: `## Repository Analysis Complete
-
-I've analyzed the repository and found the following:
-
-**Project Overview**
-- **Project Name:** ${emptyResult.projectName}
-- **Framework:** ${emptyResult.framework}
-- **Language:** ${emptyResult.language}
-
-**Dependencies**
-- No dependencies found
-
-**Scripts**
-- No scripts defined
-
-**Architecture Summary**
-${emptyResult.architectureSummary}
-
-**Documentation Status**
-${emptyResult.documentationStatus}
-
-**Recommendations**
-${emptyResult.recommendations.map((r) => `- ${r}`).join("\n")}`
-        }
-      ] as const,
-    } as UIMessage;
-
-    const stream = createUIMessageStream({
-      async execute({ writer }) {
-        const parts = mockToolResult.parts;
-        for (const part of parts) {
-          if (part.type === "text") {
-            const messageId = generateId();
-            writer.write({ type: "text-start", id: messageId });
-            
-            const tokens = tokenize(part.text);
-            for (const token of tokens) {
-              writer.write({ type: "text-delta", id: messageId, delta: token });
-              await delay(15);
-            }
-            
-            writer.write({ type: "text-end", id: messageId });
-          } else {
-            writer.write(part as unknown as UIMessageChunk);
-          }
-        }
-      },
-    });
-
-    return createUIMessageStreamResponse({ stream });
-  }
-
   try {
     const { messages } = (await req.json()) as { messages: UIMessage[] };
 
@@ -196,7 +119,7 @@ ${emptyResult.recommendations.map((r) => `- ${r}`).join("\n")}`
       /analyze\s+repository/i,
       /repository\s+analyzer/i,
       /analyze\s+this\s+repo/i,
-      /explain\s+this\s+repository/i,
+      /explain\s+this\s+repo/i,
       /summarize\s+technologies/i,
       /tech\s+stack/i,
       /generate\s+a\s+professional\s+readme/i,
@@ -214,73 +137,30 @@ ${emptyResult.recommendations.map((r) => `- ${r}`).join("\n")}`
     if (shouldCallRepositoryAnalyzer) {
       const input = { analysisType: "overview" } as const;
       const analysisResult = await analyzeRepository(input);
-
-      const mockToolResult = {
-        id: generateId(),
-        role: "assistant" as const,
-        parts: [
-          {
-            type: "tool-repositoryAnalyzer" as const,
-            toolCallId: generateId(),
-            state: "output-available" as const,
-            input,
-            output: analysisResult,
-          },
-          {
-            type: "text" as const,
-            text: `## Repository Analysis Complete
-
-I've analyzed the repository and found the following:
-
-**Project Overview**
-- **Project Name:** ${analysisResult.projectName}
-- **Framework:** ${analysisResult.framework}
-- **Language:** ${analysisResult.language}
-
-**Dependencies**
-${analysisResult.dependencies.length > 0 
-  ? analysisResult.dependencies.map((d) => `- ${d}`).join("\n")
-  : "- No dependencies found"}
-
-**Scripts**
-${Object.entries(analysisResult.scripts).length > 0
-  ? Object.entries(analysisResult.scripts).map(([k, v]) => `- **${k}**: ${v}`).join("\n")
-  : "- No scripts defined"}
-
-**Architecture Summary**
-${analysisResult.architectureSummary}
-
-**Documentation Status**
-${analysisResult.documentationStatus}
-
-**Recommendations**
-${analysisResult.recommendations.map((r) => `- ${r}`).join("\n")}`
-          }
-        ] as const,
-      } as UIMessage;
-
+      const toolCallId = generateId();
+      
       const stream = createUIMessageStream({
         async execute({ writer }) {
-          const parts = mockToolResult.parts;
-          for (const part of parts) {
-            if (part.type === "text") {
-              const messageId = generateId();
-              writer.write({ type: "text-start", id: messageId });
-              
-              const tokens = tokenize(part.text);
-              for (const token of tokens) {
-                if (sabotageOptions.sabotageType === "mid-stream") {
-                  throw new Error("Stream interrupted");
-                }
-                writer.write({ type: "text-delta", id: messageId, delta: token });
-                await delay(15);
-              }
-              
-              writer.write({ type: "text-end", id: messageId });
-            } else {
-              writer.write(part as unknown as UIMessageChunk);
+          
+          writer.write({ type: "tool-input-start", toolCallId, toolName: "repositoryAnalyzer" });
+          writer.write({ type: "tool-input-available", toolCallId, toolName: "repositoryAnalyzer", input: input });
+          writer.write({ type: "tool-output-available", toolCallId, output: analysisResult });
+          
+          const text = `## Repository Analysis Complete\n\nI've analyzed the repository and found the following:\n\n**Project Overview**\n- **Project Name:** ${analysisResult.projectName}\n- **Framework:** ${analysisResult.framework}\n- **Language:** ${analysisResult.language}\n\n**Dependencies**\n${analysisResult.dependencies.length > 0 ? analysisResult.dependencies.map((d: string) => `- ${d}`).join("\n") : "- No dependencies found"}\n\n**Scripts**\n${Object.keys(analysisResult.scripts).length > 0 ? Object.entries(analysisResult.scripts).map(([k, v]) => `- **${k}**: ${v}`).join("\n") : "- No scripts defined"}\n\n**Architecture Summary**\n${analysisResult.architectureSummary}\n\n**Documentation Status**\n${analysisResult.documentationStatus}\n\n**Recommendations**\n${analysisResult.recommendations.map((r: string) => `- ${r}`).join("\n")}`;
+          
+          const messageId = generateId();
+          writer.write({ type: "text-start", id: messageId });
+          
+          const tokens = tokenize(text);
+          for (const token of tokens) {
+            if (sabotageOptions.sabotageType === "mid-stream") {
+              throw new Error("Stream interrupted");
             }
+            writer.write({ type: "text-delta", id: messageId, delta: token });
+            await delay(15);
           }
+          
+          writer.write({ type: "text-end", id: messageId });
         },
       });
 
@@ -298,18 +178,18 @@ ${analysisResult.recommendations.map((r) => `- ${r}`).join("\n")}`
 
         const tokens = tokenize(mockResponseText);
         for (const token of tokens) {
-          if (sabotageOptions.sabotageType === "mid-stream") {
-            throw new Error("Stream interrupted");
+            if (sabotageOptions.sabotageType === "mid-stream") {
+              throw new Error("Stream interrupted");
+            }
+            writer.write({ type: "text-delta", id: messageId, delta: token });
+            await delay(35);
           }
-          writer.write({ type: "text-delta", id: messageId, delta: token });
-          await delay(35);
-        }
 
-        writer.write({ type: "text-end", id: messageId });
-      },
-    });
+          writer.write({ type: "text-end", id: messageId });
+        },
+      });
 
-    return createUIMessageStreamResponse({ stream });
+      return createUIMessageStreamResponse({ stream });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
     console.error("Error in AI Copilot chat route:", error);
@@ -354,7 +234,6 @@ function getMockResponse(userMessage: string): string {
 
   if (query.includes("code") || query.includes("function") || query.includes("program")) {
     return `Here is a production-grade TypeScript debounce function to help you build smooth UI interactions:
-
 \`\`\`typescript
 /**
  * Debounces a function call by a specified delay in milliseconds.
@@ -377,7 +256,6 @@ export function debounce<T extends (...args: any[]) => void>(
   };
 }
 \`\`\`
-
 You can copy this function directly using the copy button on the top right of the code block.${setupInstruction}`;
   }
 
@@ -392,15 +270,15 @@ Here is a summary of the core concepts of React Server Components (RSC) vs Clien
 | **Bundle Size** | 0KB javascript shipped to browser | Included in client bundle size |
 | **Data Fetching** | Can fetch data directly from databases/APIs | Fetches data via API routes or hooks |
 | **Interactivity** | No hooks (\`useState\`, \`useEffect\`) or event listeners | Full support for state, effects, and events |
-
-Would you like to see how to implement data loading inside a Next.js Server Component?${setupInstruction}`;
+| **Features** | | |
+357: Would you like to see how to implement data loading inside a Next.js Server Component?${setupInstruction}`;
   }
 
   if (query.includes("help") || query.includes("setup") || query.includes("config")) {
     return `### Welcome to Berozgar Copilot!
-
+ 
 I am currently running in **Mock Mode** (Offline) because no API key was found in your environment.
-
+ 
 To configure a live Gemini model:
 1. Obtain an API Key from [Google AI Studio](https://aistudio.google.com).
 2. Create a \`.env.local\` file in your project root.
@@ -409,16 +287,16 @@ To configure a live Gemini model:
    GEMINI_API_KEY=AIzaSyYourKeyGoesHere
    \`\`\`
 4. Restart your development server.
-
+ 
 Once configured, the system will automatically connect to **Gemini 1.5 Flash** for live streaming. Let me know if you need help with anything else!`;
   }
 
   return `Hello! I am Berozgar Copilot. 
-
+ 
 I received your prompt: 
 > "${userMessage}"
-
-*Note: I am operating in **Mock Mode (Offline)** since there is no active Gemini API key configured. This allows you to test the complete UI workspace and all component states immediately.*
-
+ 
+*Note: I am operating in **Mock Mode** (Offline) since there is no active Gemini API key configured. This allows you to test the complete UI workspace and all component states immediately.*
+ 
 How can I assist you with your frontend AI capstone project today?${setupInstruction}`;
 }

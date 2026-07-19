@@ -54,7 +54,7 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
     return message.parts.some((part) => {
       if (typeof part === "object" && part !== null) {
         const p = part as Record<string, unknown>;
-        return p.type === "tool-repositoryAnalyzer" && "output" in p && p.output !== undefined;
+        return p.type === "tool-output-available" && p.output !== undefined;
       }
       return false;
     });
@@ -66,7 +66,7 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
     for (const part of message.parts) {
       if (typeof part === "object" && part !== null) {
         const p = part as Record<string, unknown>;
-        if (p.type === "tool-repositoryAnalyzer" && "output" in p && p.output) {
+        if (p.type === "tool-output-available" && p.output) {
           return p.output as RepositoryAnalysisResult;
         }
       }
