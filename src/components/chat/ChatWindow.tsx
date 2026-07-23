@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useChat, type UIMessage as Message } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { ChatHeader } from "./ChatHeader";
@@ -110,7 +110,7 @@ export function ChatWindow({
   const [input, setInput] = useState("");
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [isSlowResponse, setIsSlowResponse] = useState(false);
-  const [slowResponseTimeout, setSlowResponseTimeout] = useState<NodeJS.Timeout | null>(null);
+  const slowResponseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     messages,
@@ -173,24 +173,23 @@ export function ChatWindow({
 
   useEffect(() => {
     if (isLoading) {
-      const timeout = setTimeout(() => {
+      slowResponseTimeoutRef.current = setTimeout(() => {
         setIsSlowResponse(true);
       }, 5000);
-      setSlowResponseTimeout(timeout);
     } else {
       setIsSlowResponse(false);
-      if (slowResponseTimeout) {
-        clearTimeout(slowResponseTimeout);
-        setSlowResponseTimeout(null);
+      if (slowResponseTimeoutRef.current) {
+        clearTimeout(slowResponseTimeoutRef.current);
+        slowResponseTimeoutRef.current = null;
       }
     }
 
     return () => {
-      if (slowResponseTimeout) {
-        clearTimeout(slowResponseTimeout);
+      if (slowResponseTimeoutRef.current) {
+        clearTimeout(slowResponseTimeoutRef.current);
       }
     };
-  }, [isLoading, slowResponseTimeout]);
+  }, [isLoading]);
 
   useEffect(() => {
     async function checkApiStatus() {

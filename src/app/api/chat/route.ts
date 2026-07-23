@@ -99,7 +99,7 @@ export async function POST(req: Request) {
       const provider = getGoogleProvider();
       if (provider) {
         const result = streamText({
-          model: provider("gemini-2.5-pro"),
+          model: provider("gemini-3.1-flash-lite"),
           messages: await convertToModelMessages(messages),
           system: enhancedSystemPrompt,
           tools: {

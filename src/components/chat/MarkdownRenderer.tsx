@@ -10,11 +10,11 @@ interface MarkdownRendererProps {
 
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   return (
-    <div className="prose prose-zinc dark:prose-invert max-w-none text-sm leading-relaxed text-[var(--color-text)]">
+    <div className="prose prose-zinc dark:prose-invert max-w-none text-[15px] leading-8 text-[var(--color-text)]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          code({ className, children, ...props }) {
+          code({ className, children, node, ...props }) {
             const match = /language-(\w+)/.exec(className || "");
             const codeString = String(children).replace(/\n$/, "");
 
@@ -24,7 +24,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
             if (!isBlock) {
               return (
                 <code
-                  className="rounded bg-zinc-800/10 dark:bg-zinc-200/10 px-1.5 py-0.5 font-mono text-xs font-semibold text-[var(--color-primary)]"
+                  className="rounded bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 font-mono text-[13px] font-medium text-pink-600 dark:text-pink-400"
                   {...props}
                 >
                   {children}
@@ -42,7 +42,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
           // Format Callouts/Blockquotes styled nicely
           blockquote({ children }) {
             return (
-              <blockquote className="my-4 border-l-4 border-[var(--color-primary)] bg-[var(--color-primary)]/5 pl-4 py-2 pr-2 rounded-r-lg italic text-[var(--color-muted)] text-sm">
+              <blockquote className="my-6 border-l-4 border-[var(--color-primary)] bg-zinc-100 dark:bg-zinc-900/50 pl-5 py-3 pr-4 rounded-r-lg italic text-zinc-700 dark:text-zinc-300">
                 {children}
               </blockquote>
             );
@@ -50,8 +50,8 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
           // Premium table designs
           table({ children }) {
             return (
-              <div className="my-4 overflow-x-auto rounded-xl border border-[var(--color-border)] shadow-sm">
-                <table className="w-full text-left text-sm text-[var(--color-text)] border-collapse">
+              <div className="my-6 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                <table className="w-full text-left text-sm text-zinc-900 dark:text-zinc-100 border-collapse">
                   {children}
                 </table>
               </div>
@@ -59,22 +59,22 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
           },
           thead({ children }) {
             return (
-              <thead className="bg-[var(--color-background)] border-b border-[var(--color-border)] text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+              <thead className="bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                 {children}
               </thead>
             );
           },
           tbody({ children }) {
-            return <tbody className="divide-y divide-[var(--color-border)]">{children}</tbody>;
+            return <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">{children}</tbody>;
           },
           tr({ children }) {
-            return <tr className="hover:bg-[var(--color-background)]/50 transition-colors">{children}</tr>;
+            return <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors">{children}</tr>;
           },
           th({ children }) {
-            return <th className="px-4 py-3 font-semibold text-[var(--color-text)]">{children}</th>;
+            return <th className="px-4 py-3 font-bold text-zinc-900 dark:text-white">{children}</th>;
           },
           td({ children }) {
-            return <td className="px-4 py-3 text-[var(--color-text)]/90">{children}</td>;
+            return <td className="px-4 py-3 text-zinc-800 dark:text-zinc-200">{children}</td>;
           },
           a({ href, children }) {
             return (
@@ -82,32 +82,32 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[var(--color-primary)] hover:underline font-medium break-all"
+                className="text-blue-600 dark:text-blue-400 hover:underline font-semibold break-all"
               >
                 {children}
               </a>
             );
           },
           p({ children }) {
-            return <p className="mb-3 leading-7 text-[var(--color-text)] last:mb-0">{children}</p>;
+            return <p className="mb-5 leading-8 text-zinc-800 dark:text-zinc-200 last:mb-0">{children}</p>;
           },
           h1({ children }) {
-            return <h1 className="text-xl font-bold mt-6 mb-3 text-[var(--color-text)]">{children}</h1>;
+            return <h1 className="text-2xl font-extrabold mt-8 mb-4 text-zinc-950 dark:text-white">{children}</h1>;
           },
           h2({ children }) {
-            return <h2 className="text-lg font-bold mt-5 mb-3 text-[var(--color-text)]">{children}</h2>;
+            return <h2 className="text-xl font-bold mt-7 mb-4 text-zinc-950 dark:text-white">{children}</h2>;
           },
           h3({ children }) {
-            return <h3 className="text-base font-semibold mt-4 mb-2 text-[var(--color-text)]">{children}</h3>;
+            return <h3 className="text-lg font-bold mt-6 mb-3 text-zinc-950 dark:text-white">{children}</h3>;
           },
           ul({ children }) {
-            return <ul className="list-disc pl-6 mb-4 space-y-1.5">{children}</ul>;
+            return <ul className="list-disc pl-8 mb-6 space-y-2">{children}</ul>;
           },
           ol({ children }) {
-            return <ol className="list-decimal pl-6 mb-4 space-y-1.5">{children}</ol>;
+            return <ol className="list-decimal pl-8 mb-6 space-y-2">{children}</ol>;
           },
           li({ children }) {
-            return <li className="text-[var(--color-text)] leading-relaxed">{children}</li>;
+            return <li className="text-zinc-800 dark:text-zinc-200 leading-8">{children}</li>;
           }
         }}
       >

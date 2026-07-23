@@ -115,13 +115,13 @@ export function MessageBubble({ message, isLast, onReload, isError = false }: Me
   };
 
   return (
-    <div
-      className={`group flex w-full gap-4 py-6 px-4 md:px-6 transition-colors ${
-        isUser
-          ? "flex-row-reverse bg-zinc-50/50 dark:bg-zinc-950/20"
-          : "bg-white dark:bg-zinc-900/40 border-y border-[var(--color-border)]/40"
-      }`}
-    >
+      <div
+        className={`group flex w-full gap-4 py-6 px-4 md:px-6 transition-colors ${
+          isUser
+            ? "flex-row-reverse bg-white dark:bg-zinc-950"
+            : "bg-zinc-50 dark:bg-zinc-900/50 border-y border-zinc-200 dark:border-zinc-800"
+        }`}
+      >
       <div className="flex shrink-0 select-none items-start">
         {isUser ? (
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white shadow-sm">

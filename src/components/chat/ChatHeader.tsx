@@ -37,7 +37,7 @@ export function ChatHeader({
             <span className="text-xs font-medium text-[var(--color-muted)]">
               {isMockMode
                 ? "Gemini 1.5 Flash • Mock Mode"
-                : "Gemini 1.5 Flash • Live"}
+                : "Gemini 3.1 Flash-Lite • Live"}
             </span>
           </div>
         </div>
